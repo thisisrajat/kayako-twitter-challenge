@@ -1,0 +1,16 @@
+{
+    "name": "rajat/kayako",
+    "description": "A wrapper for Twitter's API",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Rajat Jain",
+            "email": "rajat@rajatja.in"
+        }
+    ],
+    "require": {
+        "j7mbo/twitter-api-php": "dev-master"
+    },
+    "autoload": {
+    }
+}
