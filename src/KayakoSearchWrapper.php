@@ -1,10 +1,9 @@
 <?php
-
   // Defining a namespace
-  namespace App\Twitter;
+  namespace App;
 
   // Autoloading all the vendor directory
-  require_once("../vendor/autoload.php");
+  require_once(dirname(__DIR__) . "/vendor/autoload.php");
 
   /**
    * KayakoSearchWrapper: A small wrapper around Twitter API for searching tweets with specific hashtag and retweet count
@@ -12,11 +11,11 @@
    * PHP version 5.4
    *
    * @category Api
-   * @package  App\Twitter\KayakoSeachWrapper
+   * @package  App\KayakoSeachWrapper
    * @author   Rajat Jain <rajat.rj10@gmail.com>
    * @license  None
    * @version  0.1
-   * @link     <no public pointing url>
+   * @link     http://kayako.rajatja.in
    */
   class KayakoSearchWrapper {
     /**
@@ -35,12 +34,7 @@
      * Don't touch them unless you know what you're doing.
      * @var array
      */
-    private static $credentials = array(
-      'consumer_key' => "nXBMtCNRHaUIAjdDvG1wp2s24",
-      'oauth_access_token' => "90846659-LfBOWfQsEETKqGlHygJdO3xhqLXNFZBTgHm96xPdR",
-      'consumer_secret' => "mwlE5WBbXuf9W93QmmJPG4HOCpKptCTYM9kGGZ12WkQ2T9Cr5L",
-      'oauth_access_token_secret' => "Ti4YxLRDr6cNtjtYuj0zDopeywpFJcS3fT4fM1V8pPI8o"
-    );
+    private $credentials;
 
     /**
      * Number of retweets that are required in the API search result
@@ -59,6 +53,15 @@
      * @param array $params
      */
     public function __construct(array $params) {
+
+      // Initialize credentials by fetching from env variables
+      $this->credentials = array(
+        'consumer_key' => getenv('CONSUMER_KEY'),
+        'oauth_access_token' => getenv('OAUTH_TOKEN'),
+        'consumer_secret' => getenv('CONSUMER_SECRET'),
+        'oauth_access_token_secret' => getenv('OAUTH_SECRET')
+      );
+
       /**
        * Incoming retweetCount should be set else we'll fallback to 1 which is default val
        * It should be Integer
@@ -66,44 +69,57 @@
        */
       if(isset($params['retweetCount'])
         && is_numeric($params['retweetCount'])
-        && intval($params['retweetCount']) >=0 ) {
+        && intval($params['retweetCount']) >= 0 ) {
         $this->retweetCount = intval($params['retweetCount']);
       }
 
       /**
        * Incoming query should be set else we'll fallback to default `#custserv`
        * Should have the first character as `#`, else prepend `#`
-       * Html encode the query
        */
       if(isset($params['query'])) {
+        if($params['query']=== '') {
+          $params['query'] = "custserv";
+        }
         $this->query = $params['query'];
         if($this->query[0] !== '#') {
           $this->query = '#' . $this->query;
         }
-        $this->query = urlencode($this->query);
       }
+      // HTML encode the query
+      $this->query = urlencode($this->query);
     }
 
     /**
      * Generates the GET parameters for the API endpoint.
      * @return string
      */
-    private function makeGetParameters() {
+    public function makeGetParameters() {
+      // query should always be set and not be empty string
+      // if not, then something is really really wrong!
       if (!isset($this->query) || $this->query === '') {
         exit('{}');
       }
+      // Form the slug for the api url
       $slug = '?result_type=popular&q=' . $this->query;
       return $slug;
     }
 
     /**
      * Logic for filtering tweets based on retweetCount
-     * @param  array $tweet A single Tweet object in json format
+     * @param  array $tweet A single Tweet obj
      * @return bool (true || false)
      */
-    private function filterTweets($tweet) {
+    public function filterTweets($tweet) {
+      /**
+       * In the tweet object we should have retweet_count set and,
+       * The instance variable we already have should be an integer
+       * Always do INT arithmetic!
+       */
       if (isset($tweet['retweet_count']) && is_int($this->retweetCount)) {
+        // convert retweet_count into integer
         $temp_count = intval($tweet['retweet_count']);
+        // Filter the tweets
         if($temp_count >= $this->retweetCount) {
           return true;
         }
@@ -117,15 +133,41 @@
     }
 
     /**
+     * returns the query instance variable
+     * @return string
+     */
+    public function getQuery() {
+      return $this->query;
+    }
+
+    /**
+     * returns the retweetCount instance variable
+     * @return int
+     */
+    public function getRetweetCount() {
+      return $this->retweetCount;
+    }
+
+    /**
      * Returns the filtered response by querying Twitter's Search API endpoint
      * @return json
      */
     public function response() {
+      // build the slug by query parameter
       $slug = $this->makeGetParameters();
-      $proxy = new \TwitterAPIExchange(KayakoSearchWrapper::$credentials);
+
+      // instantiate TwitterAPIExchange which will do Oauth on our behalf
+      $proxy = new \TwitterAPIExchange($this->credentials);
+
+      // Passing API Endpoint, HTTP Method and slug
       $response = $proxy->request(KayakoSearchWrapper::URL, KayakoSearchWrapper::METHOD, $slug);
+
+      // We got a json response, and decoding it
       $response = json_decode($response, true);
+
+      // If the statuses exists, else we messed something up
       if (isset($response['statuses'])) {
+        // Filter all the tweets that satisfy our condiition
         return array_filter($response['statuses'], array($this, 'filterTweets'));
       }
       else {
@@ -133,26 +175,4 @@
       }
     }
   }
-
-  /**
-   * Create the barebone paramters for Twitter API
-   * @var array
-   */
-  $params = array(
-    "retweetCount" => $_GET['retweetCount'],
-    "query" => urldecode($_GET['query'])
-  );
-
-  /**
-   * Requester is the absraction of Twitter's API and instance of class KayakoSearchWrapper
-   * @var KayakoSearchWrapper
-   */
-  $requester = new KayakoSearchWrapper($params);
-
-  // Grab the plain text response
-  $response = $requester->response();
-
-  // encode the response in json and then print it
-  echo(json_encode($response));
-
 ?>
