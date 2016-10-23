@@ -26,9 +26,10 @@
           hashtag = '#custserv';
         }
         $("#search").addClass('loading');
+        $('.data-dump').html("");
         $.get({
           contentType: "application/json; charset=utf-8",
-          url: "src/kayako_wrapper.php",
+          url: "src/api.php",
           data: {retweetCount: encodeURIComponent(rt), query: encodeURIComponent(hashtag)},
           success: function(res) {
             $("#search").removeClass('loading');
